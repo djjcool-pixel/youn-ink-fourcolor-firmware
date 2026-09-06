@@ -1,0 +1,5 @@
+# Recovery profile layered after the unchanged upstream defaults.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+# CONFIG_BOOTLOADER_SKIP_VALIDATE_ALWAYS is not set
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+# CONFIG_LUCIDCAIRN_OTA is not set

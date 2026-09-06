@@ -1,0 +1,46 @@
+name: NOTE4C firmware and OTA checks
+on:
+  push:
+    branches: [2bp, 'codex/**']
+  pull_request:
+    branches: [2bp]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: note4c-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 scripts/check_boundaries.py
+      - run: cmake -S tests/ota -B build-host -DCMAKE_BUILD_TYPE=Debug
+      - run: cmake --build build-host --parallel 2
+      - run: ctest --test-dir build-host --output-on-failure -V
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ota: ['off', 'on']
+    container: espressif/idf:v5.5.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build NOTE4C with selected extensions
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          python scripts/build_firmware.py --ota '${{ matrix.ota }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-evidence-ota-${{ matrix.ota }}
+          path: firmware/build-ci-${{ matrix.ota }}/build-evidence.json
+          if-no-files-found: error
+# Build-only workflow: no releases, tags, secrets or deployment hooks.

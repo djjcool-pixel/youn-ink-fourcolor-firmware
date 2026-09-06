@@ -1,0 +1,10 @@
+menu "LucidCairn product extensions"
+config LUCIDCAIRN_OTA
+    bool "Enable explicit OTA check action (requires separately provisioned device credentials)"
+    default n
+    depends on BOOTLOADER_APP_ROLLBACK_ENABLE && MBEDTLS_CERTIFICATE_BUNDLE
+    help
+        Adds a manual settings action. No automatic network check or production
+        endpoint is provided. Provision a per-device token using a separate,
+        authorized commissioning process. Local boot recovery is always built.
+endmenu

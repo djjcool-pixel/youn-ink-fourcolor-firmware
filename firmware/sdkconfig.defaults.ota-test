@@ -1,0 +1,2 @@
+# Compile the opt-in path in CI; no credentials, endpoint or auto-check.
+CONFIG_LUCIDCAIRN_OTA=y

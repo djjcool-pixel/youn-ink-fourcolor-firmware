@@ -1,4 +1,5 @@
 #include "application.h"
+#include "extensions/feature_registry.h"
 
 #include "boards/zectrix-s3-epaper-4.2/custom_lcd_display.h"
 #include "boards/zectrix-s3-epaper-4.2/config.h"
@@ -170,7 +171,7 @@ void Application::Initialize() {
         std::vector<rawdraw::SettingsItemDef> items;
         items.push_back({"系统", "", nullptr, rawdraw::SettingsItemType::Section, false});
         items.push_back({"重启", "执行", nullptr, rawdraw::SettingsItemType::Action, false,
-                         []() { esp_restart(); }});
+                         []() { if (!extensions::Busy()) esp_restart(); }});
         items.push_back({"相册", "", nullptr, rawdraw::SettingsItemType::Section, false});
         items.push_back({"轮播间隔", FormatMinutesLabel(slideshow_interval), nullptr,
                          rawdraw::SettingsItemType::Action, false,
@@ -262,6 +263,7 @@ void Application::Initialize() {
                          }});
         items.push_back({"关于", "", nullptr, rawdraw::SettingsItemType::Section, false});
         items.push_back({"固件", PROJECT_VER, nullptr, rawdraw::SettingsItemType::Normal, false});
+        extensions::AddSettings(items);
         sr->SetItems(items);
         sr->SetFirmwareVersion("v" PROJECT_VER);
 
@@ -492,6 +494,7 @@ void Application::ArmSyncSleepTimer() {
 }
 
 void Application::EnterScheduledSleep() {
+    if (extensions::Busy()) return;
     if (IsLocalHttpServiceRunning(rawdraw_ui_manager_.get())) {
         ESP_LOGI(kTag, "Scheduled sleep skipped: local HTTP transfer service is running");
         ArmSyncSleepTimer();
@@ -513,6 +516,7 @@ void Application::EnterScheduledSleep() {
 }
 
 void Application::EnterManualSleep() {
+    if (extensions::Busy()) return;
     ESP_LOGI(kTag, "Entering manual deep sleep; stopping local services and WiFi");
     if (sleep_timer_ != nullptr) {
         esp_timer_stop(sleep_timer_);

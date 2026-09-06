@@ -1,6 +1,7 @@
 set(SOURCES
     "application.cc"
     "main.cc"
+    "extensions/feature_registry.cc"
     "settings.cc"
     "system_info.cc"
     "audio/audio_codec.cc"
@@ -112,6 +113,7 @@ idf_component_register(
     SRCS ${SOURCES}
     INCLUDE_DIRS ${INCLUDE_DIRS}
     REQUIRES
+        lucidcairn_ota
         spiffs
         mbedtls
         spi_flash
