@@ -38,6 +38,8 @@ firmware/.cache/
 firmware/.claude/
 firmware/__pycache__/
 firmware/build/
+firmware/build-ci-*/
+build-host/
 firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/managed_components/

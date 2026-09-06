@@ -1,0 +1,20 @@
+{
+  "audited_at": "2026-09-06",
+  "code_upstream": {
+    "url": "https://github.com/LazyYoun/youn-ink-fourcolor-firmware.git",
+    "branch": "2bp",
+    "commit": "51812e4ab3fa80ba7a5a5a274635ca2cf3901a25"
+  },
+  "official_entry": {
+    "url": "https://github.com/itopinion/youn-ink-fourcolor-firmware.git",
+    "branch": "2bp",
+    "commit": "4a46aa936644f1ee97e1804512260a6738fa4345"
+  },
+  "product_base": "51812e4ab3fa80ba7a5a5a274635ca2cf3901a25",
+  "legacy_reference": {
+    "repository": "djjcool-pixel/note4c-ota-terminal",
+    "commit": "dca6dc8"
+  },
+  "idf_ci": "v5.5.2",
+  "official_entry_behind_code_upstream_commits": 7
+}

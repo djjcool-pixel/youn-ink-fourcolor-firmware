@@ -3,6 +3,13 @@
 # The following five lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
+if(CMAKE_HOST_WIN32)
+    set(CMAKE_NINJA_FORCE_RESPONSE_FILE ON)
+endif()
+
+if(NOT DEFINED SDKCONFIG_DEFAULTS)
+    set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.lucidcairn")
+endif()
 
 set(PROJECT_VER "6.5.9")
 
@@ -15,3 +22,10 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-include${CMAKE_CURRENT_LIST_DIR}
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(xiaozhi)
+
+# The vendored upstream camera component uses IDF 6's renamed YUYV enum.
+# IDF 5 calls that same input format YUV422. Keep its source untouched.
+if(IDF_VERSION VERSION_LESS "6.0")
+    idf_component_get_property(video_lib espressif__esp_video COMPONENT_LIB)
+    target_compile_definitions(${video_lib} PRIVATE CAM_CTLR_COLOR_YUV422_YUYV=CAM_CTLR_COLOR_YUV422)
+endif()

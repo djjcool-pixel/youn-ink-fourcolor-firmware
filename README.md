@@ -1,199 +1,44 @@
-# Youn Ink Four Color
+# NOTE4C · Youn Ink + LucidCairn extensions
 
-这是一个面向 ESP32-S3 墨水屏设备的个人 AI 助手项目。当前主线由三部分组成：ESP32 固件、Python 后端服务、以及图片/待办/设备管理页面。
+本仓库 `djjcool-pixel/youn-ink-fourcolor-firmware` 是我们的 **NOTE4C 主固件仓库**。基于 LazyYoun 的 `2bp` 四色相册固件，复用 ZECTRIX 上游平台，在应用边界增加少量编译期扩展。
 
-项目重点不是一个通用 npm 包，而是一套可以真实运行在墨水屏设备上的系统：语音对话、TTS 播放、待办同步、天气/新闻/日历/电子书/相册页面、AP 传图、OTA 固件管理，以及适配四色屏的 RawDraw UI。
+**Upstream owns the hardware platform; we own product differentiation.** BSP、SSD2683、RawDraw、电源、按键、音频及分区表保持上游实现。旧 `djjcool-pixel/note4c-ota-terminal` 仅作 legacy / migration source，历史记录和恢复资料继续保留。
 
-## 2BP 四色图像链路
+## 当前可用范围
 
-![Youn Ink Four Color 2BP BWRY architecture](README-2bp-architecture.png)
+- 上游：NOTE4C ESP32-S3 N16R8、400×300 BWRY 四色相册、AP/LAN 传图、设置和 Wi-Fi。README 旧版对语音助手/服务端/OTA 的描述不能当作当前已接通功能；原文保存在 [上游 README 快照](docs/UPSTREAM_README.md)。
+- 扩展：固定编译期 feature registry，复用现有 `PageRenderer` 和设置项回调，不引入动态插件系统。
+- Recovery：pending verify 镜像在本地 power / NVS / heap / display / application 检查后确认；失败或启动超时请求 IDF rollback。pending 镜像跳过软件复位深睡眠跳转，NVS 初始化异常时先回滚。
+- OTA：独立 ESP-IDF component，HTTPS、受限单设备 token、严格 manifest、inactive slot、精确 size + SHA-256、ESP 镜像/版本检查后才选 boot slot。**默认关闭下载入口**；开启后也只提供手动检查，不自动下载。
+- CI：主机故障注入、硬件边界检查、ESP-IDF 固件构建（OTA off/on），不创建 release、不发布可被设备消费的版本。
 
-相册图片可由 PC/NAS 管理端或设备 AP 页面进入服务端，转换为 `2BP BWRY`（黑、白、红、黄）后通过 Wi-Fi 推送到 ESP32-S3 四色墨水屏。本仓库的 2BP 四色链路与 NOTE4 的 4BP 黑白灰阶相册独立维护：面板颜色、像素格式和刷新驱动均不同。
+仓库代码与 CI 不代表你的设备已升级。本次迁移以你已刷入的官方固件为基线，**未进行真机刷写、生产 OTA 或稳定发布**。当前实际验证证据见 [迁移开发报告](docs/MIGRATION_REPORT.md)。
 
-## 当前状态
+## Agent / 开发者入口
 
-- 后端已经切换为 `server/` 下的 Python 服务，根目录旧 Node `scripts/` 已删除。
-- 固件主界面使用 RawDraw 渲染，默认按四色屏设计，同时保留 1bpp 黑白屏兼容。
-- 主题暂时只保留一个默认视觉方向：偏任天堂感的四色主题，强调红、黄、黑、白的语义使用。
-- 图片传输支持 1bpp 黑白与 2bpp 四色 BWRY 两种格式。
-- 根目录 `.gitignore` 已排除构建产物、日志、pid、数据库、本地配置和密钥文件。
+1. [AGENTS.md](AGENTS.md)：修改边界与验收命令。
+2. [ARCHITECTURE.md](ARCHITECTURE.md)：所有权、调用链、扩展接入点。
+3. [UPSTREAM_SYNC.md](docs/UPSTREAM_SYNC.md) 与 [upstream-lock.json](docs/upstream-lock.json)：来源、固定审计点、同步步骤。
+4. [OTA_CONTRACT.md](docs/OTA_CONTRACT.md)：协议、凭据、兼容性及失败语义。
+5. [HARDWARE_ACCEPTANCE.md](docs/HARDWARE_ACCEPTANCE.md)：后续真机验收条件。
 
-## 目录结构
+## 构建与测试
 
-```text
-.
-├── firmware/        ESP32-IDF 固件，RawDraw UI、页面渲染、屏幕驱动、AP 传图
-├── server/          Python 后端，WebSocket 对话、TTS、Discovery、图片推送、OTA API
-├── frontend/        管理前端源码，使用独立的 package/pnpm 工作流
-├── docs/            历史设计文档和实现记录
-├── documents/       项目资料
-└── package.json     仅保留仓库级辅助命令，不再作为旧 Node 服务入口
+使用 ESP-IDF **v5.5.2** shell，Python 3.10+；官方上游 README 提到的开发环境为 IDF 6.0，本分支的可重复 CI 基线单独固定，不声称兼容所有 `>=5.4` 版本。
+
+```sh
+python scripts/build_firmware.py --ota off
+python scripts/build_firmware.py --ota on
+python scripts/check_boundaries.py
+cmake -S tests/ota -B build-host -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-host --parallel 2
+ctest --test-dir build-host --output-on-failure -V
 ```
 
-注意：`firmware/scripts/` 和 `frontend/scripts/` 仍然有用，分别属于固件工具和前端工具；删除的是根目录历史遗留的 `scripts/`。
+两种配置使用独立构建目录；构建脚本检查实际 sdkconfig 和 app 大小，输出 `build-evidence.json`。未提供真实 endpoint/token；不要把凭据写进配置默认值或源码。开发构建沿用上游版本元数据，不能把它当作新的稳定版本发布。
 
-## 后端服务
+## 来源与许可
 
-后端入口是 `server/llmserve.py`，推荐通过 `server/start.sh` 管理。服务默认端口：
+[ZECTRIX NOTE4C 指南](https://wiki.zectrix.com/zh/hardware/note4c/quick-start) 和 [官方开源范围](https://wiki.zectrix.com/zh/software/opensource) 指向 [itopinion/2bp](https://github.com/itopinion/youn-ink-fourcolor-firmware/tree/2bp)，其源自 [LazyYoun/2bp](https://github.com/LazyYoun/youn-ink-fourcolor-firmware/tree/2bp)。2026-09-06 核对时，当前 fork 与 LazyYoun 同在 `51812e4`，比 itopinion `4a46aa9` 多 7 个提交。
 
-| 端口 | 协议 | 用途 |
-| --- | --- | --- |
-| `9001` | WebSocket | ESP32 语音、LLM、TTS、同步消息 |
-| `8766` | UDP | 设备发现 |
-| `8766` | HTTP | 图片推送、设备图片管理、OTA API |
-| `8090` | HTTP | 独立管理服务，可选 |
-
-### 安装依赖
-
-```bash
-cd server
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 启动服务
-
-```bash
-export DASHSCOPE_API_KEY=你的百炼APIKey
-cd server
-./start.sh start
-```
-
-常用命令：
-
-```bash
-cd server
-./start.sh status
-./start.sh logs
-./start.sh restart
-./start.sh stop
-```
-
-也可以从仓库根目录调用：
-
-```bash
-npm run server:start
-npm run server:status
-npm run server:logs
-```
-
-### 本地模拟设备
-
-```bash
-cd server
-python3 mock_client.py --server ws://127.0.0.1:9001
-```
-
-## 图片和设备管理
-
-图片 HTTP API 由 `server/push_image.py` 挂到 `8766` 端口。它支持：
-
-- 上传图片文件并转换后推送到设备。
-- 选择 `1bpp` 黑白格式或 `2bpp` 四色 BWRY 格式。
-- 查询设备图片列表。
-- 删除设备图片。
-- 上传固件并提供 OTA 下载。
-
-常用接口：
-
-```bash
-curl http://localhost:8766/api/status
-curl http://localhost:8766/api/images
-```
-
-上传图片示例：
-
-```bash
-curl -X POST http://localhost:8766/api/upload_image \
-  -F "image=@/path/to/photo.jpg" \
-  -F "format=bwry2bpp" \
-  -F "title=照片标题"
-```
-
-设备进入 AP 传图模式后，手机连接设备热点并访问：
-
-```text
-http://192.168.4.1
-```
-
-## 固件
-
-固件位于 `firmware/`，基于 ESP-IDF。默认面向 ZecTrix ESP32-S3 4.2 寸墨水屏，支持四色 BWRY 屏，也保留 1bpp 黑白屏配置。
-
-### 编译
-
-```bash
-cd firmware
-source ~/Documents/esp/v6.0/esp-idf/export.sh
-idf.py build
-```
-
-根目录辅助命令：
-
-```bash
-npm run firmware:build
-```
-
-### 屏幕配置
-
-固件 Kconfig 中有屏幕类型选择：
-
-```text
-ZECTRIX_EPD_PANEL_4COLOR_SSD2683  四色 BWRY 屏
-ZECTRIX_EPD_PANEL_1BPP            黑白 1bpp 屏
-```
-
-如果要刷回旧黑白屏，先在 `idf.py menuconfig` 中切到 `1bpp black/white EPD`，再重新构建烧录。RawDraw 主题层会把红/黄语义色降级成黑白可读样式。
-
-## UI 说明
-
-固件 UI 目前走 RawDraw 组件体系，重点页面包括：
-
-- 对话：显示用户语音、识别状态、AI 回复。
-- 待办：本地展示、服务端同步、完成/删除/编辑。
-- 设置：音量、亮度、主题、网络、同步、OTA 等。
-- 相册：缩略图列表、大图展示、AP 传图入口。
-- 天气/天气详情、新闻、黄历、年度进度、日历、电子书、日志。
-- 快速切换 Overlay：用于页面间快速跳转。
-
-四色屏主题层通过语义样式绘制组件，不建议在业务页面里继续新增裸 `RED/YELLOW/BLACK/WHITE`。新增 UI 时优先使用 RawDraw 组件和 theme token。
-
-## 环境变量
-
-常用后端环境变量：
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `DASHSCOPE_API_KEY` | 无 | 百炼 API Key，启动后端必需 |
-| `LISTEN_HOST` | `0.0.0.0` | WebSocket 监听地址 |
-| `LISTEN_PORT` | `9001` | WebSocket 端口 |
-| `DISCOVERY_PORT` | `8766` | UDP 发现端口 |
-| `PUSH_IMAGE_PORT` | `8766` | 图片/OTA HTTP API 端口 |
-| `TTS_WS_CHUNK_BYTES` | `8000` | TTS 推送分片大小 |
-| `TTS_WS_CHUNK_GAP_SEC` | `0.01` | TTS 分片发送间隔 |
-
-不要提交 `.env`、数据库、日志、pid、构建目录和固件产物。
-
-## Git 提交范围
-
-建议提交：
-
-- `firmware/main/`、`firmware/components/`、`firmware/partitions/` 等固件源码。
-- `server/*.py`、`server/static/`、`server/requirements.txt`、`server/DEPLOY.md`。
-- `frontend/src/`、`frontend/package.json`、`frontend/pnpm-lock.yaml` 等前端源码。
-- 根目录 README、文档、配置模板。
-
-不要提交：
-
-- `firmware/build/`
-- `firmware/managed_components/`
-- `firmware/sdkconfig`
-- `firmware/releases/`
-- `server/.env`
-- `server/todo.db`
-- `server/*.pid`
-- `server/*.log`
-- `frontend/.env*`
-- `frontend/dist/`
-- `node_modules/`
+保留原 [根 MIT License](LICENSE)、[firmware MIT License](firmware/LICENSE) 与组件许可证；新增扩展采用 MIT。详见 [第三方归属](THIRD_PARTY_NOTICES.md)。
